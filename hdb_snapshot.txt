@@ -1,0 +1,85 @@
+Deepak@server:~> cat hdb_snapshot.py
+#!/usr/bin/env python3
+
+import subprocess
+import logging
+import colored
+
+#welcome banner
+
+from termcolor import colored
+
+def print_welcome_colored():
+    welcome_text = "WELCOME TO HDB-SNAPSHOT SCRIPT"
+    print(colored(welcome_text, 'cyan', attrs=['bold']))
+print_welcome_colored()
+
+# Set up logging
+logging.basicConfig(
+    filename='script.log',  # Log file name
+    level=logging.INFO,     # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
+server_name=input("Enter the server name(GCP):")
+
+#snapshot description
+
+description=input("Enter ticket number:")
+
+#Fetch the server details and Zone
+
+zone="gcloud compute instances list | grep -i "+f"{server_name}"+" | awk '{print $2}'"
+zone_output=subprocess.getoutput(zone)
+#print(zone_output)
+
+logging.info(f'Command output: {zone_output}')
+#disk details
+
+
+boot_disk=f"gcloud compute instances describe client --zone={zone_output}| sed -n '/index: 0/,/source:/p' | tail -n 1"
+disk_details=subprocess.getoutput(boot_disk).strip()
+disk_d=str(disk_details)
+x=(disk_d.split("/"))[-1]
+
+
+data_disk=f"gcloud compute instances describe client --zone={zone_output}| sed -n '/index: 1/,/source:/p' | tail -n 1"
+disk_details1=subprocess.getoutput(data_disk).strip()
+disk_d1=str(disk_details1)
+y=(disk_d1.split("/"))[-1]
+
+
+boot_disk_display=f"gcloud compute disks list | grep -i {x}"
+boot_disk_output=subprocess.getoutput(boot_disk_display)
+print("Boot-disk",boot_disk_output)
+
+data_disk_display=f"gcloud compute disks list | grep -i {y}"
+data_disk_output=subprocess.getoutput(data_disk_display)
+print("Data-disk",data_disk_output)
+
+snapshot_needed=input("Enter for which disk snapshot needed (1 - Boot disk / 2 - Data disk ):")
+print("creating snapshot.....")
+if(snapshot_needed=="1"):
+    from datetime import datetime
+    now = datetime.now()
+    dt_string = now.strftime("%d%m%Y")
+
+    name=str(dt_string)
+    snapshot_name="hdbsnapshot-"+x+name
+   #print("Snapshot ID:",snapshot_name)
+    snapshot_taking=f"gcloud compute snapshots create {snapshot_name} --source-disk {x} --source-disk-zone {zone_output} --description \"{description}\""
+    snapshot_output=subprocess.getoutput(snapshot_taking)
+    print(snapshot_output)
+elif(snapshot_needed=="2"):
+    from datetime import datetime
+    now = datetime.now()
+    dt_string = now.strftime("%d%m%Y")
+
+    name=str(dt_string)
+    snapshot_name="hdbsnapshot-"+y+name
+   # print("Snapshot ID:",snapshot_name)
+    snapshot_taking=f"gcloud compute snapshots create {snapshot_name} --source-disk {y} --source-disk-zone {zone_output} --description \"{description}\" "
+    snapshot_output=subprocess.getoutput(snapshot_taking)
+    print(snapshot_output)
+else:
+    print("Please enter the valid choice!")

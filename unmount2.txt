@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+
+import os
+import subprocess 
+import re
+import sys
+
+#to check server logon is possible or not
+
+server_name=input("Enter the server name:")
+ssh_server=f"ssh -t root@{server_name} sudo hostname" 
+ssh_server_success=subprocess.run(ssh_server,shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+output=ssh_server_success.stdout.decode('utf-8').strip()
+if(output==server_name):
+        print("SSH connection to server is working")
+else:
+        print("SSH connection to server cannot be established")
+
+#to find hana db or not 
+
+lsblk=f"ssh -t root@{server_name} lsblk" 
+lsblk_output=subprocess.getoutput(lsblk)
+matches = re.search("hana",lsblk_output)
+if matches:
+    print("This is hana data type")
+else:
+    print("This is not hana data type")
+
+#to find SID of the server
+
+SID="rpm"
+#print("The SID of the server is:",SID[-3:])
+
+#to unmount the filesystem
+#print("Proceeding for unmounting the filesystem")
+
+mounts=f"ssh -t root@{server_name} df -ah | grep -i vg | awk"+" '{print $6}'"
+mounts_output=subprocess.run(mounts, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+mounts_output1=mounts_output.stdout.decode('utf-8').strip()
+#print(mounts_output1)
+
+lines = mounts_output1.splitlines()
+
+# Create a list where each element is a word from the lines
+word_list = [line.strip() for line in lines]
+
+# Print the resulting list
+print("The mounts present in the servers are :",word_list)
+
+#unmount=f"ssh -t root@{server_name} umount /hana/data/rpm /hana/log/rpm /hana/New_backup/rpm /lss/shared /Backup_NewDB_rpm /hana"
+unmount=f"ssh -t root@{server_name} umount /hana/data/{SID} /hana/log/{SID} /hana/New_backup/{SID} /lss/shared /Backup_NewDB_{SID} /hana"
+unmount_output=subprocess.getoutput(unmount)
+#pattern=r"(no mount point specified)|(not mounted)|()"
+pattern=r"(target is busy)"
+matches1= re.search(pattern,unmount_output)
+if matches1:
+    print("unmount was not successfull")
+    sys.exit()
+else:
+    print("unmount was successfull")
+
+vgname=f"ssh -t root@{server_name} vgs | awk"+" {'print $1'} |sed -n"+" '2p'"
+vgname_output=subprocess.run(vgname, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+vgname_output1=vgname_output.stdout.decode('utf-8').strip()
+print(vgname_output1)
+
+
+vg_deactivate=f"ssh -t root@{server_name} vgchange -an {vgname_output1}"
+vg_deactivate_output=subprocess.getoutput(vg_deactivate)
+matches2= re.search("0",vg_deactivate_output)
+if matches2:
+    print("vgdeactivate was successfull")
+else:
+    print("vgdeactivate was not successfull")
